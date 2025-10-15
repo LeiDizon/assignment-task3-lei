@@ -156,6 +156,16 @@
             "password": "$2a$10$WdMhnN5qeA3RKlp4uNj23OAIByNltjO635hhxTMSWcV5BAbUNN4RC",
             "id": "ajY8pM2",
             "mobile": "(543) 905-5629"
+        },
+                {
+            "name": {
+                "first": "Test",
+                "last": "Test"
+            },
+            "password": "$2y$10$94RaF3sfE4GGYFWWxJVbFuPREknskrnWCi2dNuAmIOHqiPIo0Xb/C",
+            "email": "test@example.com",
+            "id": "test3",
+            "mobile": "(403) 964-2338"
         }
     ]
 }
