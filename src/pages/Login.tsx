@@ -56,14 +56,19 @@ export default function Login({ navigation }: StackScreenProps<any>) {
                     123;
                     navigation.navigate('EventsMap');
                 })
-                .catch((error) => {
-                    if (error.response) {
-                        setAuthError(error.response.data);
-                    } else {
-                        setAuthError('Something went wrong.');
-                    }
-                    setIsAuthenticating(false);
-                });
+                
+        .catch((error) => {
+            if (error.response) {
+                // Always pass a string to Alert
+                const errorMessage = typeof error.response.data === 'string'
+                    ? error.response.data
+                    : error.response.data?.message || error.response.data?.error || JSON.stringify(error.response.data) || 'Authentication failed';
+                setAuthError(errorMessage);
+            } else {
+                setAuthError('Something went wrong.');
+            }
+            setIsAuthenticating(false);
+        });
         }
     };
 
