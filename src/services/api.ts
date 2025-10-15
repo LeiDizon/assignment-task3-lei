@@ -14,7 +14,8 @@ const api = axios.create({
 
     // baseURL: 'http://0.0.0.0:3333'
     
-     baseURL: 'https://my-json-server.typicode.com/LeiDizon/assignment-task3-lei',
+    //  baseURL: 'https://my-json-server.typicode.com/LeiDizon/assignment-task3-lei'
+    baseURL: 'http://10.0.2.2:3333',
 });
 
 export const authenticateUser = (email: string, password: string): Promise<AxiosResponse> => {
