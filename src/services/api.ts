@@ -8,10 +8,13 @@ const api = axios.create({
     // To access your server online without running json-server locally,
     // you can set your baseURL to:
     // `https://my-json-server.typicode.com/<your-github-username>/<your-github-repo>`
+        // `https://my-json-server.typicode.com/LeiDizon/assignment-task3-lei`
     //
     // To use `my-json-server`, make sure your `db.json` is located at the repo root.
 
-    baseURL: 'http://0.0.0.0:3333',
+    // baseURL: 'http://0.0.0.0:3333'
+    
+     baseURL: 'https://my-json-server.typicode.com/LeiDizon/assignment-task3-lei',
 });
 
 export const authenticateUser = (email: string, password: string): Promise<AxiosResponse> => {
