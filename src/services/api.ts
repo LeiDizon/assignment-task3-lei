@@ -26,10 +26,10 @@ export const authenticateUser = (email: string, password: string): Promise<Axios
 // Get events with network-first, fallback to cache strategy
 // This function gets events from the network, and if the network request fails, it will fallback to the cache.
 export const getEvents = () => {
-    // Get the events from the network
-    return getFromNetworkFirst('events', api.get('/events')
-        // If the network request is successful, return the data
-        .then(res => res.data)
-        // If the network request fails, fallback to the cache
-    );
+    return getFromNetworkFirst('events', api.get('/events').then(res => res.data));
+};
+
+// Create new event
+export const createEvent = (eventData: any) => {
+    return api.post('/events', eventData);
 };

@@ -1,34 +1,17 @@
 import { Feather } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StackScreenProps } from '@react-navigation/stack';
-import React, { useContext, useRef } from 'react';
-import { Image, StyleSheet, Text, View } from 'react-native';
+import React, { useContext, useRef, useEffect, useState } from 'react';
+import { Image, StyleSheet, Text, View, TouchableOpacity } from 'react-native';
 import { RectButton } from 'react-native-gesture-handler';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, { Marker, PROVIDER_GOOGLE, MapPressEvent } from 'react-native-maps';
 import customMapStyle from '../../map-style.json';
 import * as MapSettings from '../constants/MapSettings';
 import { AuthenticationContext } from '../context/AuthenticationContext';
 import mapMarkerImg from '../images/map-marker.png';
-
-import { useEffect,useState } from 'react';
-
-// Import the Spinner component from the 'react-native-loading-spinner-overlay' library
 import Spinner from 'react-native-loading-spinner-overlay';
-
-// Import the api object from the '../services/api' module
-// The api object is used to make API requests to the server
 import * as api from '../services/api';
-
-// Import the getFromCache function from the '../services/caching' module
-// The getFromCache function is used to retrieve data from the cache
 import { getFromCache } from '../services/caching';
-
-// The getFromCache function takes a key as an argument and returns a promise
-// that resolves to the cached data associated with the key
-// If the data is not found in the cache, the promise is rejected with an error
-// The function is used to implement a caching strategy for API requests
-// It checks if the requested data is already cached, and if so, returns the cached data
-// If not, it makes the API request and caches the response before returning it
 
 interface Event {
     id: string;
@@ -45,6 +28,11 @@ interface Event {
     imageUrl?: string;
 }
 
+interface NewEventLocation {
+    latitude: number;
+    longitude: number;
+}
+
 export default function EventsMap(props: StackScreenProps<any>) {
     const { navigation } = props;
     const authenticationContext = useContext(AuthenticationContext);
@@ -52,6 +40,8 @@ export default function EventsMap(props: StackScreenProps<any>) {
     
     const [events, setEvents] = useState<Event[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
+    const [isCreatingEvent, setIsCreatingEvent] = useState<boolean>(false);
+    const [newEventLocation, setNewEventLocation] = useState<NewEventLocation | null>(null);
 
     useEffect(() => {
         loadEvents();
@@ -60,17 +50,31 @@ export default function EventsMap(props: StackScreenProps<any>) {
     const loadEvents = async () => {
         setIsLoading(true);
         try {
-            // Try to fetch from network first, fallback to cache if network fails
             const data = await api.getEvents();
             console.log('Events loaded from API:', data);
-            setEvents(data);
+            
+            const now = new Date();
+            const upcomingEvents = data.filter((event: Event) => {
+                const eventDate = new Date(event.dateTime);
+                return eventDate > now;
+            });
+            
+            console.log(`Filtered ${upcomingEvents.length} future events out of ${data.length} total events`);
+            setEvents(upcomingEvents);
         } catch (error) {
             console.log('Failed to load from API, trying cache...');
             try {
-                // If API fails, try to load from cache
                 const cachedEvents = await getFromCache<Event[]>('events');
                 console.log('Events loaded from cache:', cachedEvents);
-                setEvents(cachedEvents);
+                
+                const now = new Date();
+                const upcomingEvents = cachedEvents.filter((event: Event) => {
+                    const eventDate = new Date(event.dateTime);
+                    return eventDate > now;
+                });
+                
+                console.log(`Filtered ${upcomingEvents.length} upcoming events from cache`);
+                setEvents(upcomingEvents);
             } catch (cacheError) {
                 console.log('No cached events available:', cacheError);
                 setEvents([]);
@@ -80,59 +84,57 @@ export default function EventsMap(props: StackScreenProps<any>) {
         }
     };
 
-    /**
-     * Fits the map to show all markers when events are loaded
-     * This code is called when the events state changes
-     * It will fit the map to show all the markers of the events, with an animation
-     */
     useEffect(() => {
-        // If there are events and the map is ready
-        if (events.length > 0 && mapViewRef.current) {
-            // Get the coordinates of all the events
+        if (events.length > 0 && mapViewRef.current && !isCreatingEvent) {
             const coordinates = events.map(({ position }) => ({
                 latitude: position.latitude,
                 longitude: position.longitude,
             }));
 
-            // Fit the map to show all the markers, with an animation
-            // The edge padding is set to 64px on top, 16px on right, 104px on bottom, and 16px on left
-            // This is to ensure that the markers are not cut off by the edge of the map
-            // The animated parameter is set to true, to animate the map movement
-            // The map is fitted to the coordinates of all the events
-            // This will move the map to show all the events
-            // The animation will make the map movement smooth and visually appealing
             mapViewRef.current.fitToCoordinates(
                 coordinates,
                 { edgePadding: MapSettings.EDGE_PADDING, animated: true }
             );
         }
-    }, [events]);
+    }, [events, isCreatingEvent]);
 
-    /**
-     * Handles the navigation to the create event screen
-     * This function will be called when the user wants to create a new event
-     * It will navigate to the create event screen
-     */
+    const handleNavigateToCreateEvent = () => {
+        setIsCreatingEvent(true);
+        setNewEventLocation(null);
+    };
+
+    const handleCancelLocationSelection = () => {
+        setIsCreatingEvent(false);
+        setNewEventLocation(null);
+    };
+
+    const handleMapPress = (event: MapPressEvent) => {
+        if (isCreatingEvent && !newEventLocation) {
+            const { latitude, longitude } = event.nativeEvent.coordinate;
+            setNewEventLocation({ latitude, longitude });
+            console.log('Location selected:', latitude, longitude);
+        }
+    };
+
+    const handleLocationConfirmed = () => {
+        if (newEventLocation) {
+            navigation.navigate('CreateEvent', {
+                latitude: newEventLocation.latitude,
+                longitude: newEventLocation.longitude,
+            });
+            setIsCreatingEvent(false);
+            setNewEventLocation(null);
+        }
+    };
 
     const handleNavigateToEventDetails = (eventId: string) => {
-        // TODO: Navigate to event details screen
         console.log('Navigate to event:', eventId);
     };
 
-    /**
-     * Handles the logout action
-     * This function will be called when the user wants to log out
-     * It will remove the user info and access token from the AsyncStorage
-     * and then navigate back to the login screen
-     */
     const handleLogout = async () => {
-        // Remove user info and access token from AsyncStorage
         try {
             await AsyncStorage.multiRemove(['userInfo', 'accessToken']);
-            // Set the authentication context value to undefined
-            // This will trigger the authentication context to reset
             authenticationContext?.setValue(undefined);
-            // Navigate back to the login screen
             navigation.navigate('Login');
         } catch (error) {
             console.log('Failed to log out:', error);
@@ -153,7 +155,9 @@ export default function EventsMap(props: StackScreenProps<any>) {
                 toolbarEnabled={false}
                 moveOnMarkerPress={false}
                 mapPadding={MapSettings.EDGE_PADDING}
+                onPress={handleMapPress}
             >
+                {/* Existing event markers */}
                 {events.map((event) => {
                     return (
                         <Marker
@@ -168,17 +172,54 @@ export default function EventsMap(props: StackScreenProps<any>) {
                         </Marker>
                     );
                 })}
+                
+                {/* New event location marker */}
+                {newEventLocation && (
+                    <Marker coordinate={newEventLocation}>
+                        <Image resizeMode="contain" style={{ width: 48, height: 54 }} source={mapMarkerImg} />
+                    </Marker>
+                )}
             </MapView>
 
-            <View style={styles.footer}>
-                <Text style={styles.footerText}>{events.length} event(s) found</Text>
-                <RectButton
-                    style={[styles.smallButton, { backgroundColor: '#00A3FF' }]}
-                    onPress={handleNavigateToCreateEvent}
-                >
-                    <Feather name="plus" size={20} color="#FFF" />
-                </RectButton>
-            </View>
+            {/* Header bar - Shows during event creation */}
+            {isCreatingEvent && (
+                <View style={styles.topMenuContainer}>
+                    <View style={styles.menuHeader}>
+                        <TouchableOpacity onPress={handleCancelLocationSelection} style={styles.backButton}>
+                            <Feather name="arrow-left" size={24} color="#00A3FF" />
+                        </TouchableOpacity>
+                        <Text style={styles.menuHeaderTitle}>Add event</Text>
+                        <TouchableOpacity onPress={handleCancelLocationSelection} style={styles.closeButton}>
+                            <Feather name="x" size={24} color="#FF669D" />
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            )}
+
+
+            {/* Location confirmation button */}
+            {isCreatingEvent && newEventLocation && (
+                <View style={styles.locationConfirmContainer}>
+                    <RectButton style={styles.nextButton} onPress={handleLocationConfirmed}>
+                        <Text style={styles.nextButtonText}>Next</Text>
+                    </RectButton>
+                </View>
+            )}
+
+            {/* Footer with event count and add button */}
+            {!isCreatingEvent && (
+                <View style={styles.footer}>
+                    <Text style={styles.footerText}>{events.length} event(s) found</Text>
+                    <RectButton
+                        style={[styles.smallButton, { backgroundColor: '#00A3FF' }]}
+                        onPress={handleNavigateToCreateEvent}
+                    >
+                        <Feather name="plus" size={20} color="#FFF" />
+                    </RectButton>
+                </View>
+            )}
+
+            {/* Logout button */}
             <RectButton
                 style={[styles.logoutButton, styles.smallButton, { backgroundColor: '#4D6F80' }]}
                 onPress={handleLogout}
@@ -186,6 +227,7 @@ export default function EventsMap(props: StackScreenProps<any>) {
                 <Feather name="log-out" size={20} color="#FFF" />
             </RectButton>
 
+            {/* Loading spinner */}
             <Spinner
                 visible={isLoading}
                 textContent={'Loading events...'}
@@ -203,47 +245,113 @@ const styles = StyleSheet.create({
         justifyContent: 'flex-end',
         alignItems: 'center',
     },
-
     mapStyle: {
         ...StyleSheet.absoluteFillObject,
     },
-
     logoutButton: {
         position: 'absolute',
         top: 70,
         right: 24,
-
         elevation: 3,
     },
-
+    topMenuContainer: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        backgroundColor: '#FFF',
+        borderBottomLeftRadius: 20,
+        borderBottomRightRadius: 20,
+        elevation: 5,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 3.84,
+    },
+    menuHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 20,
+        paddingTop: 50,
+        paddingBottom: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#D3E2E5',
+    },
+    backButton: {
+        padding: 4,
+        width: 40,
+    },
+    closeButton: {
+        padding: 4,
+        width: 40,
+        alignItems: 'flex-end',
+    },
+    menuHeaderTitle: {
+        fontFamily: 'Nunito_700Bold',
+        fontSize: 18,
+        color: '#8fa7b3',
+        flex: 1,
+        textAlign: 'center',
+    },
+    instructionBanner: {
+        position: 'absolute',
+        top: 140,
+        left: 24,
+        right: 24,
+        backgroundColor: '#00A3FF',
+        borderRadius: 12,
+        padding: 16,
+        justifyContent: 'center',
+        alignItems: 'center',
+        elevation: 3,
+    },
+    instructionText: {
+        color: '#FFF',
+        fontSize: 14,
+        fontFamily: 'Nunito_700Bold',
+        textAlign: 'center',
+    },
+    locationConfirmContainer: {
+        position: 'absolute',
+        bottom: 40,
+        left: 24,
+        right: 24,
+    },
+    nextButton: {
+        backgroundColor: '#00A3FF',
+        borderRadius: 16,
+        height: 56,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    nextButtonText: {
+        color: 'white',
+        fontSize: 16,
+        fontFamily: 'Nunito_700Bold',
+    },
     footer: {
         position: 'absolute',
         left: 24,
         right: 24,
         bottom: 40,
-
         backgroundColor: '#FFF',
         borderRadius: 16,
         height: 56,
         paddingLeft: 24,
-
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-
         elevation: 3,
     },
-
     footerText: {
         fontFamily: 'Nunito_700Bold',
         color: '#8fa7b3',
     },
-
     smallButton: {
         width: 56,
         height: 56,
         borderRadius: 16,
-
         justifyContent: 'center',
         alignItems: 'center',
     },
